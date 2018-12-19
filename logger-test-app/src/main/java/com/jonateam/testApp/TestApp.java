@@ -6,5 +6,7 @@ package com.jonateam.testApp;
 public class TestApp {
     public static void main(String[] args) {
         System.out.println("hello world!");
+        AnotherClass ac = new AnotherClass();
+        ac.doSomething(80);
     }
 }

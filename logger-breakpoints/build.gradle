@@ -3,12 +3,33 @@ version '1.0-SNAPSHOT'
 
 apply plugin: 'java'
 
-sourceCompatibility = 1.8
+sourceCompatibility = 1.7
+
+jar {
+    archiveName = "${rootProject.name}-${rootProject.version}.jar"
+    manifest {
+        attributes(
+                'Premain-Class': 'com.jonateam.breakpointAgent.Agent',
+                'Can-Redefine-Classes': 'true',
+                'Can-Retransform-Classes': 'true',
+                'Can-Set-Native-Method-Prefix': 'true',
+                'Boot-Class-Path': './build/classes/main',
+                'Implementation-Title': "LoggerBreakpoint",
+                'Implementation-Version': rootProject.version
+        )
+    }
+    from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+}
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
+    // https://mvnrepository.com/artifact/javassist/javassist
+    compile group: 'javassist', name: 'javassist', version: '3.12.1.GA'
+
+    compile files("../logger-test-app/build/libs/logger-test-app-1.0-SNAPSHOT.jar")
     testCompile group: 'junit', name: 'junit', version: '4.12'
+
 }
