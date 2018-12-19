@@ -1,11 +1,9 @@
 package com.jonateam.breakpointAgent;
 
-import javassist.ClassPool;
-import javassist.CtClass;
-import javassist.CtMethod;
-import javassist.NotFoundException;
+import javassist.*;
 import javassist.bytecode.CodeIterator;
 
+import java.io.IOException;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.IllegalClassFormatException;
 import java.security.ProtectionDomain;
@@ -52,35 +50,33 @@ public class LoggerTransformer implements ClassFileTransformer {
             }
             ClassPool cp = ClassPool.getDefault();
             CtClass cc = cp.get(className);
-            if (hasLoggerIfc(new HashSet<String>(), cc.getInterfaces()) && hasLoggerFunctionImplementaion(cc))
+            if (hasLoggerIfc(new HashSet<String>(), new CtClass[]{cc}) && hasLoggerFunctionImplementation(cc))
             {
-                System.out.println(className);
+                return injectByteCode(cc);
             }
-
         } catch (Throwable ex) {
             ex.printStackTrace();
         }
-        if (1==1) return classfileBuffer;
-        if (loggerInterfacesNames.contains(className)) {
-            try {
-//                m.addLocalVariable("elapsedTime", CtClass.longType);
-//                m.insertBefore("elapsedTime = System.currentTimeMillis();");
-//                m.insertAfter("{elapsedTime = System.currentTimeMillis() - elapsedTime;"
-//                        + "System.out.println(\"Method Executed in ms: \" + elapsedTime);}");
-//                byte[] byteCode = cc.toBytecode();
-//                cc.detach();
-//                return byteCode;
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
-        }
-
-
-        //System.out.println("transformer: " + className);
         return classfileBuffer;
     }
 
-    private boolean hasLoggerFunctionImplementaion(CtClass cc) {
+    private byte[] injectByteCode(CtClass cc) throws IOException, CannotCompileException {
+        for (CtMethod m : cc.getDeclaredMethods()) {
+            if (loggerFunctionsNames.contains(m.getName())) {
+                try {
+                    m.insertBefore("com.jonateam.breakpointAgent.Breakpoint.breakIt();");
+                } catch (Throwable t) {
+                    t.printStackTrace();
+                }
+            }
+        }
+        byte[] byteCode = cc.toBytecode();
+        cc.detach();
+        return byteCode;
+
+    }
+
+    private boolean hasLoggerFunctionImplementation(CtClass cc) {
         if (cc.isAnnotation() || cc.isArray() || cc.isInterface()  ||
                 cc.isPrimitive() || cc.isEnum() || cc.isFrozen()) {
             return false;
@@ -124,6 +120,13 @@ public class LoggerTransformer implements ClassFileTransformer {
                     if (hasLoggerIfc(visitedInterfaces, subIfc)) {
                         return true;
                     }
+                }
+                CtClass superclass = ifc.getSuperclass();
+                if (superclass == null || superclass.getName().equals("java.lang.Object")) {
+                    continue;
+                }
+                if (hasLoggerIfc(visitedInterfaces, new CtClass[]{superclass})) {
+                    return true;
                 }
             }
         }

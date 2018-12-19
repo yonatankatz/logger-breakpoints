@@ -11,7 +11,7 @@ public class AnotherClass {
     Logger logger = LoggerFactory.getLogger(AnotherClass.class);
 
     public void doSomething(int param) {
-        logger.info("info: value " + param);
+        logger.info("info: value {} " + param, 12);
 
         logger.debug("debug: value " + param);
 
