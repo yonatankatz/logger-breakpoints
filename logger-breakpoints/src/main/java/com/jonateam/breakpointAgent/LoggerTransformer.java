@@ -33,8 +33,11 @@ public class LoggerTransformer implements ClassFileTransformer {
         loggerFunctionsNames.add("warn");
 
         ignoredPackages.add("java.");
+        ignoredPackages.add("javax.");
         ignoredPackages.add("javassist.");
         ignoredPackages.add("sun.");
+        ignoredPackages.add("com.jonateam.breakpointAgent.");
+
     }
 
     @Override
@@ -50,47 +53,79 @@ public class LoggerTransformer implements ClassFileTransformer {
             }
             ClassPool cp = ClassPool.getDefault();
             CtClass cc = cp.get(className);
-            if (hasLoggerIfc(new HashSet<String>(), new CtClass[]{cc}) && hasLoggerFunctionImplementation(cc))
-            {
-                return injectByteCode(cc);
+
+            if (!isInjectableClass(cc)) {
+                return classfileBuffer;
             }
+            for (CtMethod m : cc.getDeclaredMethods()) {
+                if (hasMethodBody(m)) {
+                    if (isLoggerFunction(cc, m)) {
+                        injectLoggerByteCode(cc, m);
+                    }
+                    else {
+                        injectStackByteCode(cc, m);
+                    }
+                }
+            }
+            return ctClassToBytes(cc);
         } catch (Throwable ex) {
             ex.printStackTrace();
         }
         return classfileBuffer;
     }
 
-    private byte[] injectByteCode(CtClass cc) throws IOException, CannotCompileException {
-        for (CtMethod m : cc.getDeclaredMethods()) {
-            if (loggerFunctionsNames.contains(m.getName())) {
-                try {
-                    m.insertBefore("com.jonateam.breakpointAgent.Breakpoint.breakIt();");
-                } catch (Throwable t) {
-                    t.printStackTrace();
-                }
-            }
-        }
+    private byte[] ctClassToBytes(CtClass cc) throws IOException, CannotCompileException {
         byte[] byteCode = cc.toBytecode();
         cc.detach();
         return byteCode;
-
     }
 
-    private boolean hasLoggerFunctionImplementation(CtClass cc) {
-        if (cc.isAnnotation() || cc.isArray() || cc.isInterface()  ||
-                cc.isPrimitive() || cc.isEnum() || cc.isFrozen()) {
+    private boolean isLoggerFunction(CtClass cc, CtMethod m) throws NotFoundException {
+        return hasLoggerIfc(new HashSet<String>(), new CtClass[]{cc}) && loggerFunctionsNames.contains(m.getName());
+    }
+
+    private boolean isInjectableClass(CtClass cc) {
+        if (cc.isAnnotation() || cc.isArray() || cc.isPrimitive() ||  cc.isFrozen()) {
             return false;
         }
+        return true;
+    }
+
+    private void injectLoggerByteCode(CtClass cc, CtMethod m) throws IOException, CannotCompileException {
+        try {
+            m.insertBefore("com.jonateam.breakpointAgent.Breakpoint.breakIt($args);");
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
+    }
+
+    private void injectStackByteCode(CtClass cc, CtMethod m) throws IOException, CannotCompileException {
+        try {
+            m.insertBefore("com.jonateam.breakpointAgent.Breakpoint.storeStack($args);");
+            m.insertAfter("com.jonateam.breakpointAgent.Breakpoint.freeStack();");
+        } catch (Throwable t) {
+            t.printStackTrace();
+            System.out.println(cc.getName() + " : " + m.getName());
+        }
+    }
+
+
+    private boolean hasLoggerFunctionImplementation(CtClass cc) {
         for (CtMethod m : cc.getDeclaredMethods()) {
             if (loggerFunctionsNames.contains(m.getName())) {
-                try {
-                    for (CodeIterator ci = m.getMethodInfo().getCodeAttribute().iterator(); ci.hasNext(); ) {
-                        return true;
-                    }
-                } catch (Throwable t) {
-
-                }
+                if (hasMethodBody(m)) return true;
             }
+        }
+        return false;
+    }
+
+    private boolean hasMethodBody(CtMethod m) {
+        try {
+            for (CodeIterator ci = m.getMethodInfo().getCodeAttribute().iterator(); ci.hasNext(); ) {
+                return true;
+            }
+        } catch (Throwable t) {
+
         }
         return false;
     }
