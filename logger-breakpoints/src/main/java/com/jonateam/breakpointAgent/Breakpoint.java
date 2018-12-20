@@ -49,7 +49,7 @@ public class Breakpoint {
     private static void handleBreakpoint(Object[] args, String search, String invoke) {
         String[] invokeOptions = invoke.split(",");
         for (Object arg : args) {
-            if (arg.toString().contains(search)) {
+            if (arg != null && arg.toString().contains(search)) {
                 for (String invokeOption : invokeOptions) {
                     invokeOperation(invokeOption.trim());
                 }
